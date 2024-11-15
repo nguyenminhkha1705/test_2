@@ -190,7 +190,24 @@
 
         function logout() {
             localStorage.removeItem("lastScannedQRCode");
-            window.location.href = "/logout";
+
+            // Gửi yêu cầu POST đến Flask để logout
+            fetch("/logout", {
+                method: "POST",  // Sử dụng phương thức POST
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "success") {
+                    // Chuyển hướng về trang login sau khi logout thành công
+                    window.location.href = "/login";
+                } else {
+                    alert("Đã có lỗi xảy ra khi đăng xuất.");
+                }
+            })
+            .catch(error => console.error("Error logging out:", error));
         }
 
         function goHome() {
