@@ -1,1 +1,7 @@
 Flask==3.0.3
+Flask-Mail
+itsdangerous
+bcrypt
+Flask-WTF
+WTForms
+mysql-connector-python
