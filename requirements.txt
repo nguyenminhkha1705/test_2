@@ -5,3 +5,4 @@ bcrypt
 Flask-WTF
 WTForms
 mysql-connector-python
+email-validator
