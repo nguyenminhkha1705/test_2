@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
     <style>
@@ -16,6 +17,7 @@
             background-color: #f7f7f7;
             margin: 0;
             font-family: Arial, sans-serif;
+            position: relative;
         }
         .container {
             background-color: #fff;
@@ -67,9 +69,32 @@
             background-color: #e68900;
             border-color: #e68900;
         }
+        .back-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: #4FD8C2;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .back-btn:hover {
+            background-color: #3bbda3;
+        }
     </style>
 </head>
 <body>
+    <!-- Nút quay lại -->
+    <button id="backBtn" class="btn back-btn" onclick="goBack()">&#60;</button>
+
     <div class="container">
         <h2 class="mb-4">Tích Điểm của Bạn</h2>
         <h1 class="points" id="points">{{ user[4] }}</h1>
@@ -79,9 +104,8 @@
         <!-- Nút để quét mã QR -->
         <button id="startScanBtn" class="btn btn-primary btn-custom">Quét mã QR</button>
 
-        <!-- Video element to show camera feed -->
-        <video id="video" width="300" height="200" style="display:none;" autoplay></video>
-        <canvas id="canvas" width="300" height="200" style="display:none;"></canvas>
+        <!-- Giao diện html5-qrcode -->
+        <div id="reader" style="width: 300px; margin: 10px auto;"></div>
 
         <!-- Nút Logout -->
         <button id="logoutBtn" onclick="logout()" class="btn btn-secondary btn-custom" style="display: block;">Đăng xuất</button>
@@ -93,90 +117,64 @@
     <script>
         const startScanBtn = document.getElementById("startScanBtn");
         const logoutBtn = document.getElementById("logoutBtn");
-        const video = document.getElementById("video");
-        const canvas = document.getElementById("canvas");
-        const qrMessage = document.getElementById("qr-message");
         const homeBtn = document.getElementById("homeBtn");
+        const qrMessage = document.getElementById("qr-message");
+        const backBtn = document.getElementById("backBtn");
 
-        let scanning = false;
         let lastScannedQRCode = localStorage.getItem("lastScannedQRCode");
 
-        // Bắt đầu quét QR
-        startScanBtn.addEventListener("click", async function() {
+        // Kiểm tra URL hiện tại để hiển thị nút quay lại
+        const currentPath = window.location.pathname;
+        if (currentPath !== "/dashboard") {
+            backBtn.style.display = "flex";
+        }
+
+        // Hàm quay lại dashboard
+        function goBack() {
+            window.location.href = "/dashboard"; // Thay URL này bằng đường dẫn đến dashboard
+        }
+
+        // Sử dụng html5-qrcode để quét QR
+        startScanBtn.addEventListener("click", function () {
             startScanBtn.style.display = "none";
             logoutBtn.style.display = "none";
 
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-            video.srcObject = stream;
-            video.style.display = "block";
+            const html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start(
+                { facingMode: "environment" },
+                {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 }
+                },
+                (decodedText) => {
+                    if (decodedText === lastScannedQRCode) {
+                        qrMessage.textContent = "Mã QR không hợp lệ";
+                        qrMessage.style.color = "red";
+                    } else {
+                        lastScannedQRCode = decodedText;
+                        localStorage.setItem("lastScannedQRCode", lastScannedQRCode);
 
-            scanning = true;
-            requestAnimationFrame(scanQRCode);
+                        qrMessage.textContent = "Chúc mừng bạn đã được cộng điểm!";
+                        qrMessage.style.color = "green";
+
+                        fetch('/process_qr', {
+                            method: 'POST',
+                            body: JSON.stringify({ qr_data: decodedText }),
+                            headers: { 'Content-Type': 'application/json' }
+                        })
+                        .then(response => response.json())
+                        .then(data => updatePoints())
+                        .catch(error => console.error("Error sending QR data:", error));
+                    }
+                    html5QrCode.stop().catch(err => console.error("Stop scan error:", err));
+                    homeBtn.style.display = "block";
+                },
+                (error) => {
+                    qrMessage.textContent = "Đang tìm mã QR...";
+                    qrMessage.style.color = "black";
+                }
+            ).catch(err => console.error("QR Code error:", err));
         });
-
-        function scanQRCode() {
-            if (!scanning) return;
-
-            const context = canvas.getContext("2d");
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, canvas.width, canvas.height);
-
-            if (code) {
-                if (code.data === lastScannedQRCode) {
-                    qrMessage.textContent = "Mã QR không hợp lệ";
-                    qrMessage.style.color = "red";
-                    stopScan();
-                    startScanBtn.style.display = "none";
-                    logoutBtn.style.display = "none";
-                    homeBtn.style.display = "block";
-                    return;
-                }
-
-                lastScannedQRCode = code.data;
-                localStorage.setItem("lastScannedQRCode", lastScannedQRCode);
-
-                const qrData = code.data.trim();
-                const qrDataParts = qrData.split(':');
-
-                if (qrDataParts.length < 2 || isNaN(qrDataParts[1])) {
-                    qrMessage.textContent = "Mã QR không hợp lệ";
-                    qrMessage.style.color = "red";
-                    stopScan();
-                    startScanBtn.style.display = "none";
-                    logoutBtn.style.display = "none";
-                    homeBtn.style.display = "block";
-                    return;
-                }
-
-                qrMessage.textContent = `Chúc mừng bạn được cộng ${qrDataParts[1]} điểm!`;
-                qrMessage.style.color = "green";
-
-                fetch('/process_qr', {
-                    method: 'POST',
-                    body: JSON.stringify({ qr_data: code.data }),
-                    headers: { 'Content-Type': 'application/json' }
-                })
-                .then(response => response.json())
-                .then(data => updatePoints())
-                .catch(error => console.error("Error sending QR data:", error));
-
-                homeBtn.style.display = "block";
-                stopScan();
-            } else {
-                qrMessage.textContent = "Đang tìm mã QR...";
-                qrMessage.style.color = "black";
-                requestAnimationFrame(scanQRCode);
-            }
-        }
-
-        function stopScan() {
-            scanning = false;
-            video.srcObject.getTracks().forEach(track => track.stop());
-            video.style.display = "none";
-            canvas.style.display = "none";
-        }
 
         function updatePoints() {
             $.get("/get_points", function(data) {
@@ -190,18 +188,13 @@
 
         function logout() {
             localStorage.removeItem("lastScannedQRCode");
-
-            // Gửi yêu cầu POST đến Flask để logout
             fetch("/logout", {
-                method: "POST",  // Sử dụng phương thức POST
-                headers: {
-                    "Content-Type": "application/json"
-                }
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
             })
             .then(response => response.json())
             .then(data => {
                 if (data.status === "success") {
-                    // Chuyển hướng về trang login sau khi logout thành công
                     window.location.href = "/login";
                 } else {
                     alert("Đã có lỗi xảy ra khi đăng xuất.");
