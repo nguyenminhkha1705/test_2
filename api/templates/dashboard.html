@@ -139,6 +139,9 @@
             startScanBtn.style.display = "none";
             logoutBtn.style.display = "none";
 
+            // Hiển thị nút "Về trang chủ" ngay khi nhấn nút quét mã QR
+            homeBtn.style.display = "block"; // Nút về trang chủ sẽ xuất hiện ngay lập tức
+
             const html5QrCode = new Html5Qrcode("reader");
             html5QrCode.start(
                 { facingMode: "environment" },
@@ -167,7 +170,6 @@
                         .catch(error => console.error("Error sending QR data:", error));
                     }
                     html5QrCode.stop().catch(err => console.error("Stop scan error:", err));
-                    homeBtn.style.display = "block";
                 },
                 (error) => {
                     qrMessage.textContent = "Đang tìm mã QR...";
