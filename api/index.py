@@ -11,6 +11,7 @@ import bcrypt
 import mysql.connector
 
 app = Flask(__name__)
+
 app.config['MYSQL_HOST'] = 'bbxohptxfb0igoeap0cb-mysql.services.clever-cloud.com'
 app.config['MYSQL_USER'] = 'utu8q7k9fjpnu00h'
 app.config['MYSQL_PASSWORD'] = 'SEjl0OtOlCI3mg9rm5yV'  # Điền mật khẩu của bạn từ Clever Cloud
@@ -206,42 +207,64 @@ def logout():
 def process_qr():
     if request.method == 'POST':
         qr_data = request.json.get('qr_data')
-        print(f"Dữ liệu QR nhận được: {qr_data}")
 
-        try:
-            random_string, points_to_add = qr_data.split(':')
-            points_to_add = int(points_to_add)
-            print(f"Số điểm cần thêm: {points_to_add}")
-            print(f"Mã ngẫu nhiên: {random_string}")
-        except ValueError:
-            print("Dữ liệu QR không hợp lệ.")
-            return jsonify({"status": "error", "message": "QR không hợp lệ"}), 400
-
+        # Kiểm tra nếu người dùng chưa đăng nhập
         if 'user_id' not in session:
-            print("User chưa đăng nhập.")
             return jsonify({"status": "error", "message": "Vui lòng đăng nhập để tích điểm"}), 401
 
         user_id = session['user_id']
         db = get_db_connection()
         cursor = db.cursor()
-        cursor.execute("SELECT * FROM user_qr_scans WHERE user_id=%s AND qr_data=%s", (user_id, qr_data))
-        previous_scan = cursor.fetchone()
 
-        if previous_scan:
-            return jsonify({"status": "error", "message": "Mã QR đã được quét trước đó."}), 400
+        try:
+            # Kiểm tra xem mã QR đã được quét bởi tài khoản nào khác chưa
+            cursor.execute("SELECT user_id FROM user_qr_scans WHERE qr_data=%s", (qr_data,))
+            previous_scan = cursor.fetchone()
 
-        cursor.execute("INSERT INTO user_qr_scans (user_id, qr_data) VALUES (%s, %s)", (user_id, qr_data))
-        db.commit()
-        cursor.execute("SELECT points FROM users WHERE id=%s", (user_id,))
-        current_points = cursor.fetchone()[0]
-        new_points = current_points + points_to_add
-        update_points_in_db(user_id, new_points)
+            if previous_scan:
+                # Nếu có bản ghi đã quét mã QR, kiểm tra tài khoản nào đã quét
+                if previous_scan[0] == user_id:
+                    message = "Mã QR đã được quét bởi tài khoản của bạn trước đó."
+                else:
+                    message = "Mã QR đã được sử dụng bởi tài khoản khác."
+                cursor.fetchall()  # Đảm bảo rằng cursor được xử lý hết kết quả
+                cursor.close()
+                db.close()
+                return jsonify({"status": "error", "message": message}), 400
 
-        cursor.close()
-        db.close()
+            # Nếu mã QR chưa được quét, thêm mã QR vào bảng user_qr_scans
+            cursor.execute("INSERT INTO user_qr_scans (user_id, qr_data) VALUES (%s, %s)", (user_id, qr_data))
+            db.commit()
 
-        return jsonify({"status": "success", "message": "Điểm đã được cộng vào tài khoản của bạn.", "new_points": new_points})
+            # Lấy điểm từ dữ liệu QR (lấy điểm từ phần sau dấu ':' trong mã QR)
+            try:
+                random_string, points_to_add = qr_data.split(':')
+                points_to_add = int(points_to_add)
+            except ValueError:
+                cursor.fetchall()  # Đảm bảo xử lý kết quả truy vấn nếu có lỗi
+                cursor.close()
+                db.close()
+                return jsonify({"status": "error", "message": "QR không hợp lệ. Dữ liệu không thể phân tích."}), 400
+
+            # Cập nhật điểm cho người dùng
+            cursor.execute("SELECT points FROM users WHERE id=%s", (user_id,))
+            current_points = cursor.fetchone()[0]
+
+            new_points = current_points + points_to_add
+            update_points_in_db(user_id, new_points)
+
+            cursor.fetchall()  # Đảm bảo xử lý hết các kết quả của truy vấn trước khi đóng cursor
+            cursor.close()
+            db.close()
+
+            return jsonify({"status": "success", "message": "Điểm đã được cộng vào tài khoản của bạn.", "new_points": new_points})
+
+        except Exception as e:
+            cursor.fetchall()  # Đảm bảo xử lý hết kết quả nếu có lỗi xảy ra
+            cursor.close()
+            db.close()
+            return jsonify({"status": "error", "message": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True)
-
