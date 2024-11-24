@@ -8,91 +8,144 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
-    <style>
+<style>
+    body {
+        background-image: url({{url_for('static',filename='images/background.jpg')}});
+        background-size: cover;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+        font-family: Arial, sans-serif;
+    }
+
+    .container {
+        background-color: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        text-align: center;
+        width: 90%;
+        max-width: 400px; /* Giới hạn tối đa để phù hợp với điện thoại */
+        margin: auto;
+    }
+
+    h2 {
+        font-size: 1.5rem;
+        color: #333;
+        margin-bottom: 20px;
+    }
+
+    .points {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #333;
+    }
+
+    #reader {
+        width: 100%; /* Chiều rộng luôn là 100% so với phần tử chứa */
+        max-width: 300px; /* Giới hạn kích thước tối đa */
+        margin: 10px auto;
+    }
+
+    .btn-custom {
+        width: 100%;
+        margin-top: 10px;
+        padding: 12px;
+        font-size: 1rem;
+        border-radius: 6px;
+    }
+
+    .btn-primary {
+        background-color: #4FD8C2;
+        border-color: #4FD8C2;
+    }
+
+    .btn-primary:hover {
+        background-color: #4FD8C2;
+        border-color: #4FD8C2;
+    }
+
+    .btn-secondary {
+        background-color: #f8f9fa;
+        border-color: #f8f9fa;
+        color: #333;
+    }
+
+    .btn-secondary:hover {
+        background-color: #e2e6ea;
+        border-color: #dae0e5;
+    }
+
+    .btn-back {
+        background-color: #ff9f00;
+        border-color: #ff9f00;
+    }
+
+    .btn-back:hover {
+        background-color: #e68900;
+        border-color: #e68900;
+    }
+
+    .back-btn {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background-color: #4FD8C2;
+        border: none;
+        color: white;
+        font-size: 1.2rem;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .back-btn:hover {
+        background-color: #3bbda3;
+    }
+
+    /* Thêm Media Query cho điện thoại */
+    @media (max-width: 768px) {
         body {
-            background-image: url({{url_for('static',filename='images/background.jpg')}}); /* Đường dẫn đến hình ảnh trong thư mục static */
-            background-size: cover;  /* Làm cho hình nền bao phủ toàn bộ màn hình */
-            background-attached: scroll;
-            background-repeat: no-repeat; /* Không lặp lại hình nền */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            font-family: Arial, sans-serif;
-            position: relative;
+            padding: 0;
+            height: auto;
         }
+
         .container {
-            background-color: #fff;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            text-align: center;
-            max-width: 500px;
-            width: 100%;
+            padding: 15px;
         }
+
         h2 {
-            font-size: 1.5rem;
-            color: #333;
-            margin-bottom: 20px;
+            font-size: 1.2rem;
         }
+
         .points {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #333;
-        }
-        .btn-custom {
-            width: 100%;
-            margin-top: 10px;
-            padding: 10px;
-            font-size: 1rem;
-        }
-        .btn-primary {
-            background-color: #4FD8C2;
-            border-color: #4FD8C2;
-        }
-        .btn-primary:hover {
-            background-color: #4FD8C2;
-            border-color: #4FD8C2;
-        }
-        .btn-secondary {
-            background-color: #f8f9fa;
-            border-color: #f8f9fa;
-            color: #333;
-        }
-        .btn-secondary:hover {
-            background-color: #e2e6ea;
-            border-color: #dae0e5;
-        }
-        .btn-back {
-            background-color: #ff9f00;
-            border-color: #ff9f00;
-        }
-        .btn-back:hover {
-            background-color: #e68900;
-            border-color: #e68900;
-        }
-        .back-btn {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background-color: #4FD8C2;
-            border: none;
-            color: white;
             font-size: 1.5rem;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            cursor: pointer;
-            display: none;
-            align-items: center;
-            justify-content: center;
         }
-        .back-btn:hover {
-            background-color: #3bbda3;
+
+        .btn-custom {
+            font-size: 0.9rem;
         }
-    </style>
+
+        .back-btn {
+            font-size: 1rem;
+            width: 35px;
+            height: 35px;
+        }
+
+        #reader {
+            max-width: 250px; /* Thu nhỏ hơn nữa để vừa điện thoại */
+        }
+    }
+</style>
+
 </head>
 <body>
     <!-- Nút quay lại -->
