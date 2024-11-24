@@ -198,8 +198,11 @@ def dashboard():
 
 @app.route('/logout', methods=['POST'])
 def logout():
+    # Xóa thông tin người dùng khỏi session
     session.pop('user_id', None)
     session.pop('points', None)
+
+    # Trả về phản hồi JSON xác nhận mà không có thông báo
     return jsonify({'status': 'success'})
 
 @app.route('/process_qr', methods=['POST'])
