@@ -200,7 +200,6 @@ def dashboard():
 def logout():
     session.pop('user_id', None)
     session.pop('points', None)
-    flash("You have been logged out successfully.")
     return jsonify({'status': 'success'})
 
 @app.route('/process_qr', methods=['POST'])
