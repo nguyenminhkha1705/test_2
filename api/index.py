@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 app.config['MYSQL_HOST'] = 'bbxohptxfb0igoeap0cb-mysql.services.clever-cloud.com'
 app.config['MYSQL_USER'] = 'utu8q7k9fjpnu00h'
-app.config['MYSQL_PASSWORD'] = 'SEjl0OtOlCI3mg9rm5yV'  # Điền mật khẩu của bạn từ Clever Cloud
+app.config['MYSQL_PASSWORD'] = 'SEjl0OtOlCI3mg9rm5yV'
 app.config['MYSQL_DB'] = 'bbxohptxfb0igoeap0cb'
 app.config['MYSQL_PORT'] = 3306
 
@@ -155,10 +155,8 @@ def forgot_password():
             </html>
             """
             mail.send(msg)
-            flash("Check your email for the reset link")
             return redirect(url_for('login'))
         else:
-            flash("Email not found")
             return redirect(url_for('forgot_password'))
     return render_template('forgot_password.html')
 
@@ -179,7 +177,6 @@ def reset_password():
         db.commit()
         cursor.close()
         db.close()
-        flash("Your password has been updated.")
         return redirect(url_for('login'))
     return render_template('reset_password.html')
 
