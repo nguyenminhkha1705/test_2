@@ -45,7 +45,11 @@
             color: #333;
             margin-bottom: 20px;
         }
-
+        h2 .points {
+            font-size: 1.5rem;
+            color: #333;
+            margin-bottom: 20px;
+        }
         #reader {
             width: 100%;
             max-width: 300px;
@@ -140,6 +144,18 @@
                 max-width: 250px;
             }
         }
+        table {
+            width: 100%; /* Đảm bảo bảng sẽ chiếm hết không gian trong container */
+            max-width: 100%; /* Không cho phép bảng vượt quá chiều rộng của container */
+            margin: 20px auto; /* Căn giữa bảng */
+            border-collapse: collapse; /* Giúp bảng không bị cách nhau */
+        }
+
+        th, td {
+            padding: 12px 15px; /* Thêm khoảng cách cho các ô trong bảng */
+            text-align: center; /* Căn giữa nội dung của các ô */
+            border: 1px solid #ddd; /* Thêm viền cho bảng */
+        }
     </style>
 </head>
 <body>
@@ -147,9 +163,30 @@
     <button id="backBtn" class="btn back-btn" onclick="goBack()">&#60;</button>
 
     <div class="container">
-        <h2 class="mb-4">Tích Điểm của Bạn</h2>
-        <h1 class="points" id="points">{{ user[4] }}</h1>
+        <h2 class="mb-4">
+            Điểm của bạn  <span class="points" id="points">{{ user[4] }}</span>
+        </h2>
 
+        <table id="wasteStatisticsTable" border="1">
+            <thead>
+                <tr>
+                    <th>Waste Class</th>
+                    <th>Total Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stat in waste_statistics %}
+                <tr>
+                    <td>{{ stat.waste_class }}</td>
+                    <td>{{ stat.total_count }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3">No statistics available</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
         <p id="qr-message" style="color: green; font-weight: bold;"></p>
 
         <!-- Nút để quét mã QR -->
@@ -171,7 +208,7 @@
         const homeBtn = document.getElementById("homeBtn");
         const qrMessage = document.getElementById("qr-message");
         const backBtn = document.getElementById("backBtn");
-
+        const wasteStatisticsTable = document.getElementById("wasteStatisticsTable");
         let lastScannedQRCode = localStorage.getItem("lastScannedQRCode");
 
         // Kiểm tra URL hiện tại để hiển thị nút quay lại
@@ -189,9 +226,8 @@
         startScanBtn.addEventListener("click", function () {
             startScanBtn.style.display = "none";
             logoutBtn.style.display = "none";
-
             homeBtn.style.display = "block"; // Nút về trang chủ sẽ xuất hiện ngay lập tức
-
+            wasteStatisticsTable.style.display = "none";
             const html5QrCode = new Html5Qrcode("reader");
             html5QrCode.start(
                 { facingMode: "environment" },
@@ -254,7 +290,6 @@
                 }
             });
         }
-
         // Hàm logout
         function logout() {
             localStorage.removeItem("lastScannedQRCode");
@@ -279,6 +314,7 @@
         // Hàm về trang chủ
         function goHome() {
             window.location.href = "/dashboard";
+            wasteStatisticsTable.style.display = "table";
         }
     </script>
 </body>
