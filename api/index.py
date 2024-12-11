@@ -9,6 +9,8 @@ from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, ValidationError
 import bcrypt
 import mysql.connector
+import datetime
+import re
 
 app = Flask(__name__)
 
@@ -47,6 +49,39 @@ def update_points_in_db(user_id, new_points):
     cursor.close()
     db.close()
 
+def get_user_statistics(user_id):
+    db = get_db_connection()
+    cursor = db.cursor()
+
+    # Lấy ngày đầu tháng hiện tại (ngày 1 của tháng hiện tại)
+    current_month_start = datetime.datetime.now().replace(day=1).strftime('%Y-%m-%d')
+
+    # Lấy ngày cuối tháng hiện tại (ngày 31 của tháng hiện tại)
+    next_month = datetime.datetime.now().replace(day=28) + datetime.timedelta(days=4)  # Đảm bảo luôn chuyển sang tháng tiếp theo
+    current_month_end = next_month.replace(day=1) - datetime.timedelta(days=1)  # Trở lại ngày cuối của tháng hiện tại
+    current_month_end = current_month_end.strftime('%Y-%m-%d')
+
+    # Truy vấn thống kê số lượng rác từ ngày 1 đến ngày 31 của tháng hiện tại
+    cursor.execute("""
+        SELECT waste_class, SUM(total_count) AS total_count
+        FROM waste_statistics
+        WHERE user_id=%s AND classification_month BETWEEN %s AND %s
+        GROUP BY waste_class
+    """, (user_id, current_month_start, current_month_end))
+
+    statistics = cursor.fetchall()
+    cursor.close()
+    db.close()
+
+    # Lưu trữ kết quả thống kê theo loại rác
+    waste_statistics = []
+    for row in statistics:
+        waste_statistics.append({
+            "waste_class": row[0],
+            "total_count": row[1],
+        })
+
+    return waste_statistics
 def generate_qr_data(points):
     random_string = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
     timestamp = str(int(time.time()))
@@ -180,18 +215,35 @@ def reset_password():
         return redirect(url_for('login'))
     return render_template('reset_password.html')
 
+
 @app.route('/dashboard')
 def dashboard():
     if 'user_id' in session:
         user_id = session['user_id']
+
+        # Truy vấn thông tin người dùng từ bảng users
         db = get_db_connection()
         cursor = db.cursor()
         cursor.execute("SELECT * FROM users WHERE id=%s", (user_id,))
         user = cursor.fetchone()
+
+        # Kiểm tra nếu không có người dùng
+        if not user:
+            cursor.close()
+            db.close()
+            return redirect(url_for('login'))
+
+        # Lấy thông tin thống kê phân loại rác của người dùng
+        waste_statistics = get_user_statistics(user_id)
+
         cursor.close()
         db.close()
-        return render_template('dashboard.html', user=user) if user else redirect(url_for('login'))
+
+        # Trả về kết quả và render template với thông tin người dùng và thống kê
+        return render_template('dashboard.html', user=user, waste_statistics=waste_statistics)
+
     return redirect(url_for('login'))
+
 
 @app.route('/logout', methods=['POST'])
 def logout():
@@ -216,53 +268,61 @@ def process_qr():
         cursor = db.cursor()
 
         try:
-            # Kiểm tra xem mã QR đã được quét bởi tài khoản nào khác chưa
+            # Kiểm tra nếu mã QR đã quét
             cursor.execute("SELECT user_id FROM user_qr_scans WHERE qr_data=%s", (qr_data,))
             previous_scan = cursor.fetchone()
-
             if previous_scan:
-                # Nếu có bản ghi đã quét mã QR, kiểm tra tài khoản nào đã quét
-                if previous_scan[0] == user_id:
-                    message = "Mã QR đã được quét bởi tài khoản của bạn trước đó."
-                else:
-                    message = "Mã QR đã được sử dụng bởi tài khoản khác."
-                cursor.fetchall()  # Đảm bảo rằng cursor được xử lý hết kết quả
+                message = "Mã QR đã được quét."
                 cursor.close()
                 db.close()
                 return jsonify({"status": "error", "message": message}), 400
 
-            # Nếu mã QR chưa được quét, thêm mã QR vào bảng user_qr_scans
+            # Phân tích dữ liệu từ qr_data
+            try:
+                waste_data, unique_id, points_to_add = qr_data.split(':')
+                points_to_add = int(points_to_add)
+            except ValueError:
+                return jsonify({"status": "error", "message": "Dữ liệu QR không hợp lệ."}), 400
+
+            # Tách các loại rác
+            waste_classes = waste_data.split(',')
+            current_month = datetime.datetime.now().strftime('%Y-%m-01')
+
+            # Lưu từng loại rác vào bảng waste_statistics
+            for waste in waste_classes:
+                # Sử dụng regex để tách class_name và count
+                match = re.match(r"([a-zA-Z]+)(\d+)", waste)
+                if not match:
+                    # Nếu không khớp định dạng, bỏ qua mục này
+                    continue
+                class_name = match.group(1)  # Lấy phần chữ
+                count = int(match.group(2))  # Lấy phần số
+                cursor.execute("""
+                    INSERT INTO waste_statistics (user_id, waste_class, total_count, classification_month)
+                    VALUES (%s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE total_count = total_count + VALUES(total_count)
+                """, (user_id, class_name, count, current_month))
+
+            # Cộng điểm vào bảng users
+            cursor.execute("SELECT points FROM users WHERE id=%s", (user_id,))
+            current_points = cursor.fetchone()[0]
+            new_points = current_points + points_to_add
+            cursor.execute("UPDATE users SET points=%s WHERE id=%s", (new_points, user_id))
+
+            # Lưu mã QR đã quét
             cursor.execute("INSERT INTO user_qr_scans (user_id, qr_data) VALUES (%s, %s)", (user_id, qr_data))
             db.commit()
 
-            # Lấy điểm từ dữ liệu QR (lấy điểm từ phần sau dấu ':' trong mã QR)
-            try:
-                random_string, points_to_add = qr_data.split(':')
-                points_to_add = int(points_to_add)
-            except ValueError:
-                cursor.fetchall()  # Đảm bảo xử lý kết quả truy vấn nếu có lỗi
-                cursor.close()
-                db.close()
-                return jsonify({"status": "error", "message": "QR không hợp lệ. Dữ liệu không thể phân tích."}), 400
-
-            # Cập nhật điểm cho người dùng
-            cursor.execute("SELECT points FROM users WHERE id=%s", (user_id,))
-            current_points = cursor.fetchone()[0]
-
-            new_points = current_points + points_to_add
-            update_points_in_db(user_id, new_points)
-
-            cursor.fetchall()  # Đảm bảo xử lý hết các kết quả của truy vấn trước khi đóng cursor
-            cursor.close()
-            db.close()
-
-            return jsonify({"status": "success", "message": "Điểm đã được cộng vào tài khoản của bạn.", "new_points": new_points})
+            return jsonify({"status": "success", "message": "Điểm đã được cộng.", "new_points": new_points})
 
         except Exception as e:
-            cursor.fetchall()  # Đảm bảo xử lý hết kết quả nếu có lỗi xảy ra
+            db.rollback()
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+        finally:
             cursor.close()
             db.close()
-            return jsonify({"status": "error", "message": str(e)}), 500
+    return render_template('dashboard.html')
 
 
 if __name__ == "__main__":
